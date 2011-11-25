@@ -1,0 +1,80 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<head>
+    <title>Print Rally Artifacts</title>
+
+    <meta name="Name" content="Print Rally Artifacts" />
+    <meta name="Version" content="1.0" />
+    <meta name="Vendor" content="Vitalii Tiutiunnyk" />
+
+    <script type="text/javascript" src="/apps/1.27/sdk.js"></script>
+    <script type="text/javascript">
+
+        var RALLY_APP = {};
+
+        function loadUserStoriesForIteration(iterationOid) {
+            console.log("Try loading user stories...");
+            RALLY_APP.userStoriesTable.destroy();
+            RALLY_APP.userStoriesTable = new rally.sdk.ui.Table({
+                    columns: [ {key: 'FormattedIDLink', header: 'FormattedID'},
+                                {key: 'NameTextBox', header: 'Name'},
+                                {key: 'OwnerName', header: 'Owner'},
+                                {key: 'ScheduleStateDropdown', header: 'Schedule State'},
+                                {key: 'BlockedCheckBox', header: 'Blocked'}],
+                    type: "hierarchicalrequirement",
+                    fetch: "Name,FormattedID,Owner,ScheduleState,Blocked",
+                    query: "(Iteration.ObjectID = iterationOid)"},
+                RALLY_APP.rallyDataSource);
+            RALLY_APP.userStoriesTable.display("userStoriesTable");
+        }
+
+        function onLoad() {
+            RALLY_APP.rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
+                                                                    '__PROJECT_OID__',
+                                                                    '__PROJECT_SCOPING_UP__',
+                                                                    '__PROJECT_SCOPING_DOWN__');
+
+            RALLY_APP.iterationDropdown = new rally.sdk.ui.IterationDropdown({ label : "Select an iteration " }, RALLY_APP.rallyDataSource);
+
+            RALLY_APP.userStoriesTable = new rally.sdk.ui.Table({
+                    columns: [ {key: 'FormattedIDLink', header: 'FormattedID'},
+                                {key: 'NameTextBox', header: 'Name'},
+                                {key: 'OwnerName', header: 'Owner'},
+                                {key: 'ScheduleStateDropdown', header: 'Schedule State'},
+                                {key: 'BlockedCheckBox', header: 'Blocked'}],
+                    type: "hierarchicalrequirement",
+                    fetch: "Name,FormattedID,Owner,ScheduleState,Blocked",
+                    query: "(Iteration.ObjectID = 4215029203)"},
+                RALLY_APP.rallyDataSource);
+
+            RALLY_APP.iterationDropdown.addEventListener(RALLY_APP.iterationDropdown.getValidEvents().onChange, function(sender, args) {
+                console.log(RALLY_APP.iterationDropdown.getSelectedOids());
+                loadUserStoriesForIteration(RALLY_APP.iterationDropdown.getSelectedOids()[0]);
+            });
+
+            RALLY_APP.userStoriesTable.addEventListener(RALLY_APP.userStoriesTable.getValidEvents().onDataRetrieved, function(table, args) {
+                rally.forEach(args.items, function(item) {
+                    item.FormattedIDLink = new rally.sdk.ui.basic.Link({"item":item});
+                    item.OwnerName = item.Owner ? item.Owner._refObjectName : "";
+                    item.BlockedCheckBox = new rally.sdk.ui.basic.CheckBox({checked: item.Blocked, rememberChecked:false});
+                    item.NameTextBox = new rally.sdk.ui.basic.TextBox({value:item.Name, rememberValue:false});
+                    item.ScheduleStateDropdown = new rally.sdk.ui.basic.Dropdown(
+                        {items: {Backlog:"Backlog", Defined:"Defined", "In-Progress":"In-Progress", Completed:"Completed", Accepted:"Accepted"},
+                         defaultValue: item.ScheduleState,
+                         rememberSelection: false})
+                });
+            });
+
+            RALLY_APP.iterationDropdown.display("iterationDropdown");
+            RALLY_APP.userStoriesTable.display("userStoriesTable");
+        }
+
+       rally.addOnLoad(onLoad);
+
+    </script>
+</head>
+<body>
+    <div id="iterationDropdown"></div>
+    <div id="userStoriesTable"></div>
+</body>
+</html>
