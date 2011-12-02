@@ -12,7 +12,75 @@
     <!-- Change the line above for the release -->
     <script type="text/javascript">
 
-        var RALLY_APP = {};
+        var RALLY_APP = {
+            start: function() {
+                console.log("Rally App started...");
+
+                // 1. Init data source
+
+                // Release version
+                //RALLY_APP.initDataSource('__WORKSPACE_OID__', '__PROJECT_OID__', '__PROJECT_SCOPING_UP__', '__PROJECT_SCOPING_DOWN__');
+                // PERS
+                this.initDataSource('2541145153', '2842265140', false, false);
+                // B2B
+                //RALLY_APP.initDataSource('2541145153', '4098172609', false, false);
+
+                // 2a. Init UI components
+                RALLY_APP.initUiComponents();
+                // 2b. Add event processors to UI components
+                // 3. Run iterations query.
+            },
+
+            initDataSource: function(workspaceOid, projectOid, projectScopingUp, projectScopingDown) {
+                console.log("initdatasource called....");
+                RALLY_APP.rallyDataSource = new rally.sdk.data.RallyDataSource(workspaceOid, projectOid, projectScopingUp, projectScopingDown);
+            },
+
+            initUiComponents: function() {
+              /*  RALLY_APP.iterationDropdown = new rally.sdk.ui.IterationDropdown(
+                    {
+                        //type: "iteration",
+                        //attribute: "Name",
+                        //order: "StartDate desc",
+                        label: "Select an iteration:"
+                    },
+                    RALLY_APP.rallyDataSource);
+
+                RALLY_APP.storiesAndDefectsTable = new rally.sdk.ui.Table({
+                        columns: [ {key: 'PrintCheckBox', header: 'Print'},
+                                    {key: 'FormattedIDLink', header: 'ID'},
+                                    {key: 'ArtifactType', header: 'Type'},
+                                    {key: 'ArtifactName', header: 'Name'}]
+                    });
+
+                RALLY_APP.iterationDropdown.display("iterationDropdown", function(dropdown, eventArgs) {
+                        console.log("Iteration selected...");
+                        
+                        // Retrieve stories and defects
+                        RALLY_APP.rallyDataSource.findAll(RALLY_APP.getStoryAndDefectQueriesForIteration(dropdown.getSelectedOids[0]), null);
+                        // Reset table
+                        // Populate table with items
+                        // Display table
+                    });*/
+            },
+
+            getStoryAndDefectQueriesForIteration: function(iterationOid) {
+                return [
+                    {
+                        type: "hierarchicalrequirement",
+                        key: "stories",
+                        query: "(Iteration.ObjectID = " + iterationOid + ")"
+                    },
+
+                    {
+                        type: "defect",
+                        key: "defects",
+                        query: "(Iteration.ObjectID = " + iterationOid + ")"
+                    }
+                ];
+            }
+
+        };
 
         function loadUserStoriesForIteration(iterationOid) {
             console.log("Try loading user stories...");
@@ -44,6 +112,13 @@
         }
 
         function onLoad() {
+            // 1. Init data source
+            // 2. Init UI components
+            // 3. Add event processors to UI components
+            // 4. Run iterations query.
+
+
+
 //            RALLY_APP.rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
 //                                                                    '__PROJECT_OID__',
 //                                                                    '__PROJECT_SCOPING_UP__',
@@ -51,7 +126,7 @@
             // PERS = 2842265140
             // B2B = 4098172609
 
-            RALLY_APP.rallyDataSource = new rally.sdk.data.RallyDataSource('2541145153', '2842265140', 'false', 'false');
+            RALLY_APP.rallyDataSource = new rally.sdk.data.RallyDataSource('2541145153', '2842265140', false, false);
             // Change the line above for release
 
             RALLY_APP.iterationDropdown = new rally.sdk.ui.IterationDropdown({ label : "Select an iteration " }, RALLY_APP.rallyDataSource);
@@ -89,7 +164,7 @@
             RALLY_APP.userStoriesTable.display("userStoriesTable");
         }
 
-       rally.addOnLoad(onLoad);
+       rally.addOnLoad(function () { RALLY_APP.start(); });
 
     </script>
 </head>
