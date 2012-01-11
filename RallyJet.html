@@ -3,21 +3,60 @@
 <head>
     <title>RallyJet</title>
 
-    <meta name="Name" content="RallyJet" />
-    <meta name="Version" content="1.0" />
-    <meta name="Vendor" content="Vitalii Tiutiunnyk" />
+    <meta name="Name" content="RallyJet"/>
+    <meta name="Version" content="1.0"/>
+    <meta name="Vendor" content="Vitalii Tiutiunnyk"/>
 
     <!--<script type="text/javascript" src="/apps/1.29/sdk.js"></script>-->
     <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.29/sdk.js?debug=true"></script>
     <script type="text/javascript">
-        function RallyJetApp() {
 
+        function ExtendedIterationDropdown(dataSource, domElementId, onChanged) {
+            var rallyDataSource = dataSource;
+            var domElementBound = domElementId;
+            var onSelectionChanged = onChanged;
+            var dropdown = new rally.sdk.ui.basic.Dropdown({ label: "Select an iteration" });
+            var items = [];
+
+            this.display = function() {
+                dropdown.display(domElementBound, onSelectionChanged);
+            };
         }
 
-        rally.addOnLoad();
+        function RallyJetApp() {
+            var rallyDataSource = new rally.sdk.data.RallyDataSource("__WORKSPACE_OID__",
+                    "__PROJECT_OID__",
+                    "__PROJECT_SCOPING_UP__",
+                    "__PROJECT_SCOPING_DOWN__");
+
+            var onIterationChanged = function() {
+
+            };
+
+            var iterationDropdown = new ExtendedIterationDropdown(rallyDataSource, "iterationDropdown", onIterationChanged);
+
+            this.start = function() {
+                iterationDropdown.display();
+            };
+
+            this.getRallyDataSource = function() {
+                return rallyDataSource;
+            };
+
+            this.getIterationDropdown = function() {
+                return iterationDropdown;
+            };
+        }
+
+        function onLoad() {
+            var rallyJetApp = new RallyJetApp();
+            rallyJetApp.start();
+        }
+
+        rally.addOnLoad(onLoad);
     </script>
 </head>
 <body>
-
+    <div id="iterationDropdown"></div>
 </body>
 </html>
