@@ -11,12 +11,48 @@
     <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.29/sdk.js?debug=true"></script>
     <script type="text/javascript">
 
-        function ExtendedIterationDropdown(dataSource, domElementId, onChanged) {
-            var rallyDataSource = dataSource;
+        function ExtendedTable(tableConfig, rallyDataSource, rallyObjectTypes) {
+
+        }
+
+        function ExtendedIterationDropdown(rallyDataSource, domElementId, onChanged) {
+            var UNSCHEDULED_ITERATION_ID = 'NULL_CRITERIA';
+
+            var dataSource = rallyDataSource;
             var domElementBound = domElementId;
             var onSelectionChanged = onChanged;
-            var dropdown = new rally.sdk.ui.basic.Dropdown({ label: "Select an iteration" });
+            var dropdown = new rally.sdk.ui.basic.Dropdown({ label: "Select an iteration : " });
             var items = [];
+            var self = this;
+
+            var onReloadIterationsComplete = function(results) {
+                var now = new Date();
+                var currentIterationId = UNSCHEDULED_ITERATION_ID;
+                items[0] = { label: 'Unscheduled', value: UNSCHEDULED_ITERATION_ID };
+                for (var i = 0; i < results.iterations.length; i++) {
+                    var iteration = results.iterations[i];
+                    items[i + 1] = { label: iteration.Name, value: iteration.ObjectID };
+                    if (currentIterationId === UNSCHEDULED_ITERATION_ID
+                            && now >= rally.sdk.util.DateTime.fromIsoString(iteration.StartDate, true)
+                            && now <= rally.sdk.util.DateTime.fromIsoString(iteration.EndDate, true)) {
+
+                        currentIterationId = iteration.ObjectID;
+                    }
+                }
+
+                dropdown.setItems(items);
+                self.display();
+                dropdown.setValue(currentIterationId);
+            };
+
+            this.reloadIterations = function() {
+                dataSource.findAll({
+                    type: 'iteration',
+                    key: 'iterations',
+                    fetch: 'Name,ObjectID,StartDate,EndDate',
+                    order: 'StartDate desc'
+                }, onReloadIterationsComplete);
+            };
 
             this.display = function() {
                 dropdown.display(domElementBound, onSelectionChanged);
@@ -24,19 +60,29 @@
         }
 
         function RallyJetApp() {
-            var rallyDataSource = new rally.sdk.data.RallyDataSource("__WORKSPACE_OID__",
-                    "__PROJECT_OID__",
-                    "__PROJECT_SCOPING_UP__",
-                    "__PROJECT_SCOPING_DOWN__");
+//            var rallyDataSource = new rally.sdk.data.RallyDataSource("__WORKSPACE_OID__",
+//                    "__PROJECT_OID__",
+//                    "__PROJECT_SCOPING_UP__",
+//                    "__PROJECT_SCOPING_DOWN__");
+
+            var rallyDataSource = new rally.sdk.data.RallyDataSource('2541145153',
+                    '4098172609',
+                    false,
+                    false);
 
             var onIterationChanged = function() {
-
+                // load stories and defects for the iteration selected
+                console.log('test');
             };
 
-            var iterationDropdown = new ExtendedIterationDropdown(rallyDataSource, "iterationDropdown", onIterationChanged);
+            var iterationDropdown = new ExtendedIterationDropdown(rallyDataSource,
+                    "iterationDropdown",
+                    onIterationChanged);
+
+            var defectsAndStoriesTable = new ExtendedTable({}, rallyDataSource, ['defect', 'hierarchicalrequirement']);
 
             this.start = function() {
-                iterationDropdown.display();
+                iterationDropdown.reloadIterations();
             };
 
             this.getRallyDataSource = function() {
@@ -58,5 +104,6 @@
 </head>
 <body>
     <div id="iterationDropdown"></div>
+    <div id="defectsAndStoriesTable"></div>
 </body>
 </html>
