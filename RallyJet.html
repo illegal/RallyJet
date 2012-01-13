@@ -11,8 +11,72 @@
     <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.29/sdk.js?debug=true"></script>
     <script type="text/javascript">
 
-        function ExtendedTable(tableConfig, rallyDataSource, rallyObjectTypes) {
+        function ExtendedTable(tableConfig, rallyDataSource, domElementId, rallyObjectTypes) {
+            var USER_STORY_OBJECT_TYPE_NAME = 'hierarchicalrequirement';
+            var GENERIC_STATE_ATTRIBUTE_NAME = 'State';
+            var USER_STORY_STATE_ATTRIBUTE_NAME = 'ScheduleState';
 
+            var config = tableConfig;
+            var dataSource = rallyDataSource;
+            var domElementBound = domElementId;
+            var objectTypes = rallyObjectTypes;
+            var table = new rally.sdk.ui.Table(config);
+            var self = this;
+
+            function getObjectAttributes(objectType) {
+                var attributesToFetch = [];
+                for (var i = 0; i < config.columns.length; i++) {
+                    var column = config.columns[i];
+                    if (column.key === GENERIC_STATE_ATTRIBUTE_NAME && objectType === USER_STORY_OBJECT_TYPE_NAME) {
+                        attributesToFetch[i] = USER_STORY_STATE_ATTRIBUTE_NAME;
+                    } else {
+                        attributesToFetch[i] = column.key;
+                    }
+                }
+
+                return attributesToFetch;
+            }
+
+            function prepareQueryConfiguration(filterQuery) {
+                var queryConfigArray = [];
+
+                for (var i = 0; i < objectTypes.length; i++) {
+                    queryConfigArray[i] = {
+                        type: objectTypes[i],
+                        key: objectTypes[i],
+                        query: filterQuery,
+                        fetch: getObjectAttributes(objectTypes[i]).join(',')
+                    };
+                }
+
+                return queryConfigArray;
+            }
+
+            function onLoadObjectsComplete(results) {
+                var rows = [];
+                var index = 0;
+
+                for (var i = 0; i < objectTypes.length; i++) {
+                    var objectType = objectTypes[i];
+                    var objectAttributes = getObjectAttributes(objectType);
+                    for (var j = 0; j < results[objectType].length; j++) {
+                        var resultItem = results[objectType][j];
+                        var row = {};
+                        for (var k = 0; k < objectAttributes.length; k++) {
+                            var attributeName = objectAttributes[k];
+                            row[attributeName] = resultItem[attributeName];
+                        }
+                        rows[index++] = row;
+                    }
+                }
+
+                table.addRows(rows);
+                table.display(domElementBound);
+            }
+
+            this.loadObjects = function(filterQuery) {
+                dataSource.findAll(prepareQueryConfiguration(filterQuery), onLoadObjectsComplete);
+            };
         }
 
         function ExtendedIterationDropdown(rallyDataSource, domElementId, onChanged) {
@@ -25,7 +89,7 @@
             var items = [];
             var self = this;
 
-            var onReloadIterationsComplete = function(results) {
+            function onLoadIterationsComplete(results) {
                 var now = new Date();
                 var currentIterationId = UNSCHEDULED_ITERATION_ID;
                 items[0] = { label: 'Unscheduled', value: UNSCHEDULED_ITERATION_ID };
@@ -45,13 +109,21 @@
                 dropdown.setValue(currentIterationId);
             };
 
-            this.reloadIterations = function() {
+            this.loadIterations = function() {
                 dataSource.findAll({
                     type: 'iteration',
                     key: 'iterations',
                     fetch: 'Name,ObjectID,StartDate,EndDate',
                     order: 'StartDate desc'
-                }, onReloadIterationsComplete);
+                }, onLoadIterationsComplete);
+            };
+
+            this.isUnscheduledIteration = function() {
+                return dropdown.getValue() === UNSCHEDULED_ITERATION_ID;
+            };
+
+            this.getIterationId = function() {
+                return dropdown.getValue();
             };
 
             this.display = function() {
@@ -70,19 +142,32 @@
                     false,
                     false);
 
-            var onIterationChanged = function() {
-                // load stories and defects for the iteration selected
-                console.log('test');
+            function onIterationChanged() {
+                var filterQuery = '';
+                if (!iterationDropdown.isUnscheduledIteration()) {
+                    filterQuery = '(Iteration.ObjectID = ' + iterationDropdown.getIterationId() + ')';
+                }
+                defectsAndStoriesTable.loadObjects(filterQuery);
             };
 
             var iterationDropdown = new ExtendedIterationDropdown(rallyDataSource,
                     "iterationDropdown",
                     onIterationChanged);
 
-            var defectsAndStoriesTable = new ExtendedTable({}, rallyDataSource, ['defect', 'hierarchicalrequirement']);
+            var defectsAndStoriesTable = new ExtendedTable(
+                    {
+                        columns: [
+                            { key: 'FormattedID', header: 'ID' },
+                            { key: 'Name', header: 'Name' },
+                            { key: 'ScheduleState', header: 'State' }
+                        ]
+                    },
+                    rallyDataSource,
+                    "defectsAndStoriesTable",
+                    ['defect', 'hierarchicalrequirement']);
 
             this.start = function() {
-                iterationDropdown.reloadIterations();
+                iterationDropdown.loadIterations();
             };
 
             this.getRallyDataSource = function() {
