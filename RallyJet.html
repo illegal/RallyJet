@@ -11,41 +11,23 @@
     <script type="text/javascript" src="https://rally1.rallydev.com/apps/1.29/sdk.js?debug=true"></script>
     <script type="text/javascript">
 
-        function ExtendedTable(tableConfig, rallyDataSource, domElementId, rallyObjectTypes) {
-            var USER_STORY_OBJECT_TYPE_NAME = 'hierarchicalrequirement';
-            var GENERIC_STATE_ATTRIBUTE_NAME = 'State';
-            var USER_STORY_STATE_ATTRIBUTE_NAME = 'ScheduleState';
-
+        function ExtendedTable(tableConfig, rallyDataSource, domElementId) {
             var config = tableConfig;
             var dataSource = rallyDataSource;
             var domElementBound = domElementId;
-            var objectTypes = rallyObjectTypes;
             var table = new rally.sdk.ui.Table(config);
+            var isDisplayed = false;
             var self = this;
-
-            function getObjectAttributes(objectType) {
-                var attributesToFetch = [];
-                for (var i = 0; i < config.columns.length; i++) {
-                    var column = config.columns[i];
-                    if (column.key === GENERIC_STATE_ATTRIBUTE_NAME && objectType === USER_STORY_OBJECT_TYPE_NAME) {
-                        attributesToFetch[i] = USER_STORY_STATE_ATTRIBUTE_NAME;
-                    } else {
-                        attributesToFetch[i] = column.key;
-                    }
-                }
-
-                return attributesToFetch;
-            }
 
             function prepareQueryConfiguration(filterQuery) {
                 var queryConfigArray = [];
 
-                for (var i = 0; i < objectTypes.length; i++) {
+                for (var i = 0; i < config.types.length; i++) {
                     queryConfigArray[i] = {
-                        type: objectTypes[i],
-                        key: objectTypes[i],
+                        type: config.types[i],
+                        key: config.types[i],
                         query: filterQuery,
-                        fetch: getObjectAttributes(objectTypes[i]).join(',')
+                        fetch: config.fetch
                     };
                 }
 
@@ -53,25 +35,47 @@
             }
 
             function onLoadObjectsComplete(results) {
+                var combinedResults = [];
                 var rows = [];
-                var index = 0;
 
-                for (var i = 0; i < objectTypes.length; i++) {
-                    var objectType = objectTypes[i];
-                    var objectAttributes = getObjectAttributes(objectType);
-                    for (var j = 0; j < results[objectType].length; j++) {
-                        var resultItem = results[objectType][j];
-                        var row = {};
-                        for (var k = 0; k < objectAttributes.length; k++) {
-                            var attributeName = objectAttributes[k];
-                            row[attributeName] = resultItem[attributeName];
-                        }
-                        rows[index++] = row;
-                    }
+                for (var i = 0; i < config.types.length; i++) {
+                    var objectType = config.types[i];
+                    combinedResults = combinedResults.concat(results[objectType]);
                 }
 
+                for (var j = 0; j < combinedResults.length; j++) {
+                    var row = {};
+                    for (var k = 0; k < config.columns.length; k++) {
+                        var columnKey = config.columns[k].key;
+                        var attributeKey = columnKey.split(".")[0];
+                        if (config.dateFormats[columnKey]) {
+                            row[attributeKey] = rally.sdk.util.DateTime.format(
+                                    combinedResults[j][attributeKey],
+                                    config.dateFormats[columnKey]);
+                        } else {
+                            row[attributeKey] = combinedResults[j][attributeKey];
+                        }
+                    }
+                    row.ItemSelected = new rally.sdk.ui.basic.CheckBox(
+                            {
+                                checked: false,
+                                rememberChecked: false
+                            }
+                    );
+
+                    rows.push(row);
+                }
+
+                rows.sort(function(a, b) { return a.Rank - b.Rank; });
+
+                if (isDisplayed) {
+                    table.destroy();
+                    isDisplayed = false;
+                    table.setItems([]);
+                }
                 table.addRows(rows);
                 table.display(domElementBound);
+                isDisplayed = true;
             }
 
             this.loadObjects = function(filterQuery) {
@@ -79,13 +83,14 @@
             };
         }
 
-        function ExtendedIterationDropdown(rallyDataSource, domElementId, onChanged) {
+        function ExtendedIterationDropdown(dropdownConfig, rallyDataSource, domElementId, onChanged) {
             var UNSCHEDULED_ITERATION_ID = 'NULL_CRITERIA';
 
+            var config = dropdownConfig;
             var dataSource = rallyDataSource;
             var domElementBound = domElementId;
             var onSelectionChanged = onChanged;
-            var dropdown = new rally.sdk.ui.basic.Dropdown({ label: "Select an iteration : " });
+            var dropdown = new rally.sdk.ui.basic.Dropdown(config);
             var items = [];
             var self = this;
 
@@ -137,46 +142,84 @@
 //                    "__PROJECT_SCOPING_UP__",
 //                    "__PROJECT_SCOPING_DOWN__");
 
+            // B2B
+//            var rallyDataSource = new rally.sdk.data.RallyDataSource('2541145153',
+//                    '4098172609',
+//                    false,
+//                    false);
+
+            // PERS
             var rallyDataSource = new rally.sdk.data.RallyDataSource('2541145153',
-                    '4098172609',
+                    '2842265140',
                     false,
                     false);
 
             function onIterationChanged() {
+                console.log('Iteration changed to ' + iterationDropdown.getIterationId());
+
                 var filterQuery = '';
-                if (!iterationDropdown.isUnscheduledIteration()) {
+                if (iterationDropdown.isUnscheduledIteration()) {
+                    filterQuery = '(Iteration = "")';
+                } else {
                     filterQuery = '(Iteration.ObjectID = ' + iterationDropdown.getIterationId() + ')';
                 }
                 defectsAndStoriesTable.loadObjects(filterQuery);
+                tasksTable.loadObjects(filterQuery);
             };
 
-            var iterationDropdown = new ExtendedIterationDropdown(rallyDataSource,
+            var iterationDropdown = new ExtendedIterationDropdown(
+                    { label: "Select an iteration : " },
+                    rallyDataSource,
                     "iterationDropdown",
                     onIterationChanged);
 
             var defectsAndStoriesTable = new ExtendedTable(
                     {
                         columns: [
-                            { key: 'FormattedID', header: 'ID' },
+                            { key: 'ItemSelected', header: ' ', width: 30 },
+                            { key: 'Rank', header: 'Rank', width: 100 },
+                            { key: 'FormattedID', header: 'ID', width: 70 },
                             { key: 'Name', header: 'Name' },
-                            { key: 'ScheduleState', header: 'State' }
-                        ]
+                            { key: 'ScheduleState', header: 'State', width: 100 },
+                            { key: 'CreationDate', header: 'Created', width: 100 },
+                            { key: 'LastUpdateDate', header: 'Modified', width: 100 }
+                        ],
+                        types: ['defect', 'hierarchicalrequirement'],
+                        fetch: 'Rank,FormattedID,Name,ScheduleState,CreationDate,LastUpdateDate',
+                        dateFormats: {
+                            'CreationDate': 'yyyy-MM-dd HH:mm',
+                            'LastUpdateDate': 'yyyy-MM-dd HH:mm'
+                        }
                     },
                     rallyDataSource,
-                    "defectsAndStoriesTable",
-                    ['defect', 'hierarchicalrequirement']);
+                    "defectsAndStoriesTable");
+
+            var tasksTable = new ExtendedTable(
+                    {
+                        columns: [
+                            { key: 'ItemSelected', header: ' ', width: 30 },
+                            { key: 'Rank', header: 'Rank', width: 100 },
+                            { key: 'WorkProduct.FormattedID', header: 'Parent ID', width: 70 },
+                            { key: 'FormattedID', header: 'ID', width: 70 },
+                            { key: 'Name', header: 'Name' },
+                            { key: 'State', header: 'State', width: 100 },
+                            { key: 'CreationDate', header: 'Created', width: 100 },
+                            { key: 'LastUpdateDate', header: 'Modified', width: 100 }
+                        ],
+                        types: ['task'],
+                        fetch: 'Rank,WorkProduct,FormattedID,Name,State,CreationDate,LastUpdateDate',
+                        dateFormats: {
+                            'CreationDate': 'yyyy-MM-dd HH:mm',
+                            'LastUpdateDate': 'yyyy-MM-dd HH:mm'
+                        }
+                    },
+                    rallyDataSource,
+                    "tasksTable");
 
             this.start = function() {
                 iterationDropdown.loadIterations();
             };
 
-            this.getRallyDataSource = function() {
-                return rallyDataSource;
-            };
-
-            this.getIterationDropdown = function() {
-                return iterationDropdown;
-            };
         }
 
         function onLoad() {
@@ -189,6 +232,9 @@
 </head>
 <body>
     <div id="iterationDropdown"></div>
+    <h1>User Stories and Defects</h1>
     <div id="defectsAndStoriesTable"></div>
+    <h1>Tasks</h1>
+    <div id="tasksTable"></div>
 </body>
 </html>
